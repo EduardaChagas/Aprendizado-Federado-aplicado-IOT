@@ -1,1 +1,1 @@
-# Aprendizado Federado aplicado Internet das Coisas
+# Aprendizado Federado aplicado a IOT
