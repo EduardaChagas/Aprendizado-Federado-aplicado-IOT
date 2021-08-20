@@ -13,11 +13,9 @@
 # limitations under the License.
 # ==============================================================================
 
-"""PyTorch MNIST image classification.
-
+"""
 The code is generally adapted from PyTorch's Basic MNIST Example. 
 The original code can be inspected in the official PyTorch github:
-
 https://github.com/pytorch/examples/blob/master/mnist/main.py
 """
 
@@ -69,34 +67,22 @@ class Dataset(torch.utils.data.Dataset):
             X = self.transform(X)
         return X, y
 
-def dataset_partitioner(
-    dataset: torch.utils.data.Dataset,
-    batch_size: int,
-    client_id: int,
-    number_of_clients: int,
-) -> torch.utils.data.DataLoader:
+def dataset_partitioner(dataset, batch_size, client_id, number_of_clients):
     """Helper function to partition datasets
-
     Parameters
     ----------
     dataset: torch.utils.data.Dataset
         Dataset to be partitioned into *number_of_clients* subsets.
-
     batch_size: int
         Size of mini-batches used by the returned DataLoader.
-
     client_id: int
         Unique integer used for selecting a specific partition.
-
     number_of_clients: int
         Total number of clients launched during training. This value dictates the number of partitions to be created.
-
-
     Returns
     -------
     data_loader: torch.utils.data.Dataset
         DataLoader for specific client_id considering number_of_clients partitions.
-
     """
 
     # Set the seed so we are sure to generate the same global batches
@@ -119,61 +105,43 @@ def dataset_partitioner(
     return data_loader
 
 
-def load_data(
-    data_root: str,
-    train_batch_size: int,
-    test_batch_size: int,
-    cid: int,
-    nb_clients: int,
-) -> Tuple[DataLoader, DataLoader]:
-    """Helper function that loads both training and test datasets for MNIST.
-
+def load_data(data_root, train_batch_size, test_batch_size, cid, nb_clients):
+    """Helper function that loads both training and test datasets.
     Parameters
     ----------
     data_root: str
-        Directory where MNIST dataset will be stored.
-
+        Directory where dataset will be stored.
     train_batch_size: int
         Mini-batch size for training set.
-
     test_batch_size: int
         Mini-batch size for test set.
-
     cid: int
         Client ID used to select a specific partition.
-
     nb_clients: int
         Total number of clients launched during training. This value dictates the number of unique to be created.
-
-
     Returns
     -------
     (train_loader, test_loader): Tuple[DataLoader, DataLoader]
         Tuple contaning DataLoaders for training and test sets.
-
     """
 
-#    transform = transforms.Compose(
-#        [torch.tensor]
-#    )
+    train_dataset = Dataset([e for e in range(19622)], data_root)
 
-    train_dataset = Dataset([e for e in range(19622)], data_root)#, transform=transform)
-
-    test_dataset = Dataset([e for e in range(19622)], data_root)#, transform=transform)
+    test_dataset = Dataset([e for e in range(19622)], data_root)
 
     # Create partitioned datasets based on the total number of clients and client_id
     train_loader = dataset_partitioner(
-        dataset=train_dataset,
-        batch_size=train_batch_size,
-        client_id=cid,
-        number_of_clients=nb_clients,
+        dataset = train_dataset,
+        batch_size = train_batch_size,
+        client_id = cid,
+        number_of_clients = nb_clients,
     )
 
     test_loader = dataset_partitioner(
-        dataset=test_dataset,
-        batch_size=test_batch_size,
-        client_id=cid,
-        number_of_clients=nb_clients,
+        dataset = test_dataset,
+        batch_size = test_batch_size,
+        client_id = cid,
+        number_of_clients = nb_clients,
     )
 
     return (train_loader, test_loader)
@@ -215,45 +183,35 @@ class HARmodel(nn.Module):
     	return out
 
 
-def train(
-    model: torch.nn.Module,
-    train_loader: torch.utils.data.DataLoader,
-    epochs: int,
-    cid: int,
-    device: torch.device = torch.device("cpu"),
-) -> int:
-    """Train routine based on 'Basic MNIST Example'
-
+def train(model, train_loader, epochs, cid, device: torch.device = torch.device("cpu")):
+    """Train routine 
+    
     Parameters
     ----------
     model: torch.nn.Module
         Neural network model used in this example.
-
     train_loader: torch.utils.data.DataLoader
         DataLoader used in training.
-
     epochs: int
         Number of epochs to run in each round.
-
     device: torch.device
          (Default value = torch.device("cpu"))
          Device where the network will be trained within a client.
-
+         
     Returns
     -------
     num_examples_train: int
         Number of total samples used during training.
-
     """
     model.train()
     optimizer = optim.Adadelta(model.parameters(), lr=1.0)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
     print(f"Training {epochs} epoch(s) w/ {len(train_loader)} mini-batches each")
     for epoch in range(epochs):  # loop over the dataset multiple times
         print()
         loss_epoch: float = 0.0
         num_examples_train: int = 0
         correct: int = 0
+        criterion = torch.nn.CrossEntropyLoss()
         for batch_idx, (data, target) in enumerate(train_loader):
             # Grab mini-batch and transfer to device
             data, target = data.to(device), target.to(device)
@@ -261,17 +219,13 @@ def train(
 
             # Zero gradients
             optimizer.zero_grad()
-            
-
 
             output = model(data.unsqueeze(1).permute(0, 2, 1))
-            loss = torch.nn.CrossEntropyLoss()(output, target)
+            loss = criterion(output, target)
             loss.backward()
             optimizer.step()
             
-            pred = output.argmax(
-                dim=1, keepdim=True
-            )
+            pred = output.argmax(dim = 1, keepdim = True)
             correct += pred.eq(target.view_as(pred)).sum().item()
 
             loss_epoch += loss.item()
@@ -289,52 +243,41 @@ def train(
                         correct / num_examples_train,
                         cid,
                     ),
-                    end="\r",
-                    flush=True,
+                    end = "\r",
+                    flush = True,
                 )
-        scheduler.step()
     return num_examples_train
 
 
-def test(
-    model: torch.nn.Module,
-    test_loader: torch.utils.data.DataLoader,
-    device: torch.device = torch.device("cpu"),
-) -> Tuple[int, float, float]:
-    """Test routine 'Basic MNIST Example'
-
+def test(model, test_loader, device: torch.device = torch.device("cpu")):
+    """Test routine 
+    
     Parameters
     ----------
     model: torch.nn.Module :
         Neural network model used in this example.
-
     test_loader: torch.utils.data.DataLoader :
         DataLoader used in test.
-
     device: torch.device :
          (Default value = torch.device("cpu"))
          Device where the network will be tested within a client.
-
+         
     Returns
     -------
         Tuple containing the total number of test samples, the test_loss, and the accuracy evaluated on the test set.
-
     """
     model.eval()
     test_loss: float = 0
     correct: int = 0
     num_test_samples: int = 0
+    criterion = torch.nn.CrossEntropyLoss()
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             num_test_samples += len(data)
             output = model(data.unsqueeze(1).permute(0, 2, 1))
-            test_loss += F.nll_loss(
-                output, target, reduction="sum"
-            ).item()  # sum up batch loss
-            pred = output.argmax(
-                dim=1, keepdim=True
-            )  # get the index of the max log-probability
+            test_loss += criterion(output, target).item() 
+            pred = output.argmax(dim = 1, keepdim = True)
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= num_test_samples
@@ -366,16 +309,12 @@ class FlowerClient(fl.client.Client):
 
     def set_weights(self, weights: fl.common.Weights) -> None:
         """Set model weights from a list of NumPy ndarrays.
-
         Parameters
         ----------
         weights: fl.common.Weights
             Weights received by the server and set to local model
-
-
         Returns
         -------
-
         """
         state_dict = OrderedDict(
             {
@@ -393,16 +332,13 @@ class FlowerClient(fl.client.Client):
 
     def fit(self, ins: fl.common.FitIns) -> fl.common.FitRes:
         """Trains the model on local dataset
-
         Parameters
         ----------
         ins: fl.common.FitIns
            Parameters sent by the server to be used during training.
-
         Returns
         -------
             Set of variables containing the new set of weights and information the client.
-
         """
 
         # Set the seed so we are sure to generate the same global batches
@@ -425,43 +361,33 @@ class FlowerClient(fl.client.Client):
         params_prime = fl.common.weights_to_parameters(weights_prime)
         fit_duration = timeit.default_timer() - fit_begin
         return fl.common.FitRes(
-            parameters=params_prime,
-            num_examples=num_examples_train,
-            num_examples_ceil=num_examples_train,
-            fit_duration=fit_duration,
+            parameters = params_prime,
+            num_examples = num_examples_train,
+            num_examples_ceil = num_examples_train,
+            fit_duration = fit_duration,
         )
 
     def evaluate(self, ins: fl.common.EvaluateIns) -> fl.common.EvaluateRes:
         """
-
         Parameters
         ----------
         ins: fl.common.EvaluateIns
            Parameters sent by the server to be used during testing.
-
-
         Returns
         -------
             Information the clients testing results.
-
         """
         weights = fl.common.parameters_to_weights(ins.parameters)
 
         # Use provided weights to update the local model
         self.set_weights(weights)
 
-        (
-            num_examples_test,
-            test_loss,
-            accuracy,
-        ) = test(self.model, self.test_loader, device=self.device)
-        print(
-            f"Client {self.cid} - Evaluate on {num_examples_test} samples: Average loss: {test_loss:.4f}, Accuracy: {100*accuracy:.2f}%\n"
-        )
+        (num_examples_test, test_loss, accuracy) = test(self.model, self.test_loader, device = self.device)
+        print(f"Client {self.cid} - Evaluate on {num_examples_test} samples: Average loss: {test_loss:.4f}, Accuracy: {100*accuracy:.2f}%\n")
 
         # Return the number of evaluation examples and the evaluation result (loss)
         return fl.common.EvaluateRes(
-            num_examples=num_examples_test,
-            loss=float(test_loss),
-            accuracy=float(accuracy),
+            num_examples = num_examples_test,
+            loss = float(test_loss),
+            accuracy = float(accuracy),
         )
